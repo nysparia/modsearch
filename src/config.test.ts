@@ -405,6 +405,27 @@ describe('config file', () => {
     expect(loadConfigFile(p).engines?.tavily?.baseURL).toBeUndefined();
   });
 
+  it('stores, normalizes, validates, and unsets an engine searchDepth', () => {
+    const p = tempConfigPath();
+    setConfigValue('tavily.searchDepth', ' Advanced ', p);
+    expect(loadConfigFile(p).engines?.tavily?.searchDepth).toBe('advanced');
+
+    // Shown in the effective config like any other engine setting, so the
+    // depth actually in force is visible without reading the file.
+    const rendered = JSON.parse(renderEffectiveConfig(loadConfigFile(p)));
+    expect(rendered.engines.tavily.searchDepth).toBe('advanced (file)');
+
+    // Not one of Tavily's levels: refused at write time instead of searching
+    // at a depth nobody asked for.
+    expect(() => setConfigValue('tavily.searchDepth', 'deep', p)).toThrow(
+      /Invalid searchDepth: deep/,
+    );
+
+    // Empty unsets the override, back to the engine default.
+    setConfigValue('tavily.searchDepth', '', p);
+    expect(loadConfigFile(p).engines?.tavily?.searchDepth).toBeUndefined();
+  });
+
   it('init writes only the shape, never baked-in defaults', () => {
     // Pre-filling every engine buried the one real decision, and a default
     // written into the file would silently outrank a future change to it.

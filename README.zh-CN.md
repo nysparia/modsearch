@@ -77,7 +77,7 @@ Firecrawl 和 Keenable 零配置直接可用，其余引擎各一条命令。key
 | Grok Build | X（推特）搜索 | 随 SuperGrok 或 X Premium 订阅 | 安装 `grok` 并登录 |
 | local | 单页抓取 | 内置，零安装 | 无需任何操作 |
 
-key 也可以走环境变量（`TAVILY_API_KEY`、`EXA_API_KEY`、`FIRECRAWL_API_KEY`、`KEENABLE_API_KEY`）。同一引擎可在配置文件或环境变量中写入逗号分隔的多个 key，例如 `key-one,key-two`。配了多个引擎就自动故障转移，好的优先。每个引擎默认都参与，可以用 `modsearch config set tavily.enabled false` 排除一个。想用 Tavily、Exa、Firecrawl、Keenable 兼容的第三方或自建端点？把引擎指过去即可：`modsearch config set tavily.baseURL <url>`。官方地址始终内置在代码里，不会作为默认配置写入文件。每个引擎的全部配置项见[配置指南](skills/modsearch/references/configure.zh-CN.md)。
+key 也可以走环境变量（`TAVILY_API_KEY`、`EXA_API_KEY`、`FIRECRAWL_API_KEY`、`KEENABLE_API_KEY`）。同一引擎可在配置文件或环境变量中写入逗号分隔的多个 key，例如 `key-one,key-two`。配了多个引擎就自动故障转移，好的优先。每个引擎默认都参与，可以用 `modsearch config set tavily.enabled false` 排除一个。想用 Tavily、Exa、Firecrawl、Keenable 兼容的第三方或自建端点？把引擎指过去即可：`modsearch config set tavily.baseURL <url>`。官方地址始终内置在代码里，不会作为默认配置写入文件。Tavily 有多档排序，最便宜的 `basic` 按字面词匹配：查询里的词一旦撞上别的领域，回来的就是一堆自信的噪声。用 `modsearch config set tavily.searchDepth advanced` 提到语义排序（每次搜索消耗更多 credit）。每个引擎的全部配置项见[配置指南](skills/modsearch/references/configure.zh-CN.md)。
 
 ## 安装
 

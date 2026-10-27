@@ -74,6 +74,7 @@ JSON has no comments, so here is every field:
 | `engines.<name>.enabled` | boolean | every engine | Whether automatic routing may use this engine. Missing means enabled. Set `false` to exclude it. Setting `true` removes the override and returns to the built-in default. An explicit `--engine` still forces that engine for one run. |
 | `engines.<name>.apiKey` | string | `tavily`, `exa`, `firecrawl`, `keenable` | One API key, or multiple keys separated by commas. Whitespace and empty comma items are ignored. Authentication, rate-limit, and quota failures rotate through the keys in order. Network, 5xx, and parsing failures go directly to the next engine. Also settable via `TAVILY_API_KEY` / `EXA_API_KEY` / `FIRECRAWL_API_KEY` / `KEENABLE_API_KEY`, which win over the file. |
 | `engines.<name>.baseURL` | string | `tavily`, `exa`, `firecrawl`, `keenable` | Endpoint base replacing the official host: a compatible third-party gateway, a proxy, a self-hosted deployment. Must be a full http(s) URL. Also settable via `TAVILY_BASE_URL` / `EXA_BASE_URL` / `FIRECRAWL_BASE_URL` / `KEENABLE_BASE_URL`. Empty unsets it. See the endpoint section below. |
+| `engines.tavily.searchDepth` | `"basic"` / `"advanced"` / `"fast"` / `"ultra"` | `tavily` | Ranking depth sent to Tavily. Empty means `basic`, the built-in default. `advanced` runs the semantic pass instead of the literal one and costs more credit per search. See [Tavily depth](#tavily-depth) below. |
 | `engines.firecrawl.keylessFetch` | boolean | `firecrawl` | Allow public-page fetch through Firecrawl without a key. Default `true` (keyless fetch is on as installed). Set `false` to keep automatic page fetch off Firecrawl's cloud; a configured key or an explicit Firecrawl engine choice still enables it. |
 | `engines.<name>.bin` | string | `antigravity-cli`, `grok-cli` | Path to the engine's CLI binary. Defaults to `agy` and `grok` found on `PATH`. |
 | `engines.<name>.model` | string | `antigravity-cli` | Model the engine uses. Defaults to `gemini-3.6-flash-low`. |
@@ -87,6 +88,8 @@ modsearch config set tavily.apiKey <key>      # engine credentials
 modsearch config set tavily.apiKey <key1,key2> # rotate keys in this order
 modsearch config set tavily.apiKey            # no value: hidden prompt (see below)
 modsearch config set tavily.baseURL <url>     # a compatible third-party endpoint
+modsearch config set tavily.searchDepth advanced # semantic ranking, more credit
+modsearch config set tavily.searchDepth ""    # back to the engine default
 modsearch config set tavily.enabled false     # keep Tavily out of automatic failover
 modsearch config set tavily.enabled true      # remove the opt-out
 modsearch config set cooldown off             # turn off quota cooldown failover
@@ -125,6 +128,18 @@ modsearch config set tavily.apiKey <key>
 ```
 
 Good insurance when the keyless quota and agy both run dry: with a key present, web search falls to Tavily on its own.
+
+#### Tavily depth
+
+Tavily ranks at more than one level, and `basic` is not a smaller version of `advanced`: it matches query terms literally. A query whose words also name another domain comes back as confident noise — "Windows Terminal 1.22 release notes" retrieved a shipping terminal's bond offering, a "senior notes" press release, and a window company, because `terminal`, `notes`, `release`, and `Windows` each matched something else. `advanced` on the same query returns the official release page first. It costs more credit per search, which is why it is not the default.
+
+```bash
+modsearch config set tavily.searchDepth advanced   # semantic ranking
+modsearch config set tavily.searchDepth fast       # cheaper, shallower than basic
+modsearch config set tavily.searchDepth ""         # back to basic
+```
+
+One caveat worth knowing: `basic` also means Tavily's own `answer` field is synthesized from those results, and that answer arrives as the summary — plausible, self-consistent, and wrong when the ranking was wrong. Raising the depth fixes the summary too, because it comes from the same sources. Keys and endpoints it accepts: `basic`, `advanced`, `fast`, `ultra`. The CLI refuses anything else at write time, and the engine names a bad value it finds in a hand-edited file rather than quietly searching shallower than asked.
 
 ### exa (search, free monthly credit)
 

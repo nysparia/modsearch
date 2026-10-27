@@ -4,6 +4,7 @@ import * as path from 'path';
 // Runtime-safe: providers/index.ts imports nothing from this module at runtime
 // (its config import is type-only), so this does not create an import cycle.
 import { findEngine, listEngines } from './providers/index.ts';
+import { SEARCH_DEPTHS, parseSearchDepth } from './providers/depth.ts';
 import { splitApiKeys } from './util/apiKeys.ts';
 import { maskUrlCredentials, redactSecrets } from './util/redact.ts';
 
@@ -40,6 +41,15 @@ export interface EngineSettings {
    * point and exactly the risk: only name a host you trust with that key.
    */
   baseURL?: string;
+  /**
+   * Retrieval depth for an engine whose API ranks at more than one level
+   * (Tavily today: `basic`, `advanced`, `fast`, `ultra`). Absent means the
+   * engine's own default, which for Tavily is `basic` — literal term matching,
+   * cheap and fast, but it returns ranked noise when a query's words also name
+   * another domain. `advanced` costs more credit per search and ranks
+   * semantically. Only engines that forward a depth read this.
+   */
+  searchDepth?: string;
 }
 
 export interface ModsearchConfig {
@@ -89,6 +99,7 @@ const SETTABLE_ENGINE_FIELDS: Array<keyof EngineSettings> = [
   'enabled',
   'baseURL',
   'keylessFetch',
+  'searchDepth',
 ];
 
 /** Engines that used to be pinned globally, mapped to the role they serve. */
@@ -452,6 +463,23 @@ export function setConfigValue(
         );
       }
       value = trimmed;
+    }
+    if (field === 'searchDepth') {
+      const trimmed = value.trim();
+      // Empty unsets the override, back to the engine's own default.
+      if (trimmed === '') {
+        delete config.engines?.[engineName]?.searchDepth;
+        writeConfigFile(config, configPath);
+        return;
+      }
+      // Stored normalized so the file, the engine, and `config show` agree on
+      // one spelling. A value that bypasses this gate (hand edit, later env
+      // layer) is still re-parsed by the engine, which names it instead.
+      const parsed = parseSearchDepth(trimmed);
+      if (parsed === undefined) {
+        throw new Error(`Invalid searchDepth: ${value}. Use ${SEARCH_DEPTHS.join(', ')}.`);
+      }
+      value = parsed;
     }
     config.engines ??= {};
     config.engines[engineName] ??= {};

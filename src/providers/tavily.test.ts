@@ -72,6 +72,41 @@ describe('tavily provider', () => {
     expect(calls[0].init.signal).toBeInstanceOf(AbortSignal);
   });
 
+  it('posts the configured searchDepth, and basic when unset', async () => {
+    const calls = mockFetchJson({ answer: 'a', results: [] });
+    await executeTavilySearch({
+      mode: 'search',
+      query: 'shipping terminal senior notes',
+      timeoutMs: 1000,
+      settings: { apiKey: 'tvly-test', searchDepth: 'advanced' },
+    });
+    expect(JSON.parse(calls[0].init.body as string).search_depth).toBe('advanced');
+
+    // Normalized on the way out too, so a hand-edited spelling still works.
+    await executeTavilySearch({
+      mode: 'search',
+      query: 'q',
+      timeoutMs: 1000,
+      settings: { apiKey: 'tvly-test', searchDepth: ' Advanced ' },
+    });
+    expect(JSON.parse(calls[1].init.body as string).search_depth).toBe('advanced');
+  });
+
+  it('refuses a searchDepth it cannot map instead of searching shallower', async () => {
+    // `config set` validates at write time; a hand-edited file skips that gate,
+    // so the engine names the problem rather than silently falling back to
+    // basic and returning the same noise the setting exists to avoid.
+    mockFetchJson({});
+    await expect(
+      executeTavilySearch({
+        mode: 'search',
+        query: 'q',
+        timeoutMs: 1000,
+        settings: { apiKey: 'tvly-test', searchDepth: 'deep' },
+      }),
+    ).rejects.toThrow(/Invalid engine searchDepth: deep/);
+  });
+
   it('posts to a configured baseURL, trailing slash folded', async () => {
     const calls = mockFetchJson({ answer: 'a', results: [] });
     await executeTavilySearch({

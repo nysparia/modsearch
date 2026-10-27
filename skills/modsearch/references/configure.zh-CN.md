@@ -74,6 +74,7 @@ JSON 不支持注释，所以每个字段的说明在这里：
 | `engines.<name>.enabled` | boolean | 所有引擎 | 是否允许自动路由使用该引擎。省略表示启用。设为 `false` 会排除它，设为 `true` 会删除覆盖并回到内置默认。单次显式 `--engine` 仍会强制使用该引擎。 |
 | `engines.<name>.apiKey` | string | `tavily`、`exa`、`firecrawl`、`keenable` | 一个 API key，或用英文逗号分隔的多个 key。解析时会忽略空白和空项。鉴权、限流或配额失败时按顺序轮换 key。网络、5xx 或解析失败时直接切换下一个引擎。也可用环境变量 `TAVILY_API_KEY` / `EXA_API_KEY` / `FIRECRAWL_API_KEY` / `KEENABLE_API_KEY`，环境变量优先于文件。 |
 | `engines.<name>.baseURL` | string | `tavily`、`exa`、`firecrawl`、`keenable` | 替换官方主机的接口地址：兼容的第三方网关、代理、自建部署。必须是完整的 http(s) URL。也可用环境变量 `TAVILY_BASE_URL` / `EXA_BASE_URL` / `FIRECRAWL_BASE_URL` / `KEENABLE_BASE_URL`。设为空即取消。详见下方端点一节。 |
+| `engines.tavily.searchDepth` | `"basic"` / `"advanced"` / `"fast"` / `"ultra"` | `tavily` | 传给 Tavily 的排序深度。为空即内置默认值 `basic`；`advanced` 走语义排序而非字面排序，每次搜索消耗更多 credit。见下方「Tavily 深度」一节。 |
 | `engines.firecrawl.keylessFetch` | boolean | `firecrawl` | 允许 Firecrawl 在无 key 时抓取公网页面。默认 `true`（免注册抓取开箱即开）。设为 `false` 可让自动抓取远离 Firecrawl 云端。配置了 key 或显式选择 Firecrawl 引擎时仍会启用。 |
 | `engines.<name>.bin` | string | `antigravity-cli`、`grok-cli` | 该引擎 CLI 的路径。默认在 `PATH` 上找 `agy` 和 `grok`。 |
 | `engines.<name>.model` | string | `antigravity-cli` | 引擎使用的模型。默认 `gemini-3.6-flash-low`。 |
@@ -87,6 +88,8 @@ modsearch config set tavily.apiKey <key>      # 引擎凭据
 modsearch config set tavily.apiKey <key1,key2> # 按此顺序轮换 key
 modsearch config set tavily.apiKey            # 不带值：隐藏输入提示（见下）
 modsearch config set tavily.baseURL <url>     # 兼容的第三方端点
+modsearch config set tavily.searchDepth advanced # 语义排序，更费 credit
+modsearch config set tavily.searchDepth ""    # 回到引擎默认值
 modsearch config set tavily.enabled false     # 不让 Tavily 参与自动故障转移
 modsearch config set tavily.enabled true      # 删除禁用覆盖
 modsearch config set cooldown off             # 关闭额度冷却故障转移
@@ -124,6 +127,18 @@ modsearch config set tavily.apiKey <key>
 ```
 
 给免注册额度和 agy 都耗尽时上的好保险：有 key 在，网页搜索会自动落到 Tavily。
+
+#### Tavily 深度
+
+Tavily 有不止一档排序，而 `basic` 不是 `advanced` 的缩水版：它是按字面词匹配。查询里一旦有词撞上另一个领域，回来的就是一串自信的噪声——「Windows Terminal 1.22 release notes」检索到的是航运码头的债券发行、高级票据新闻稿和一家门窗公司，因为 `terminal`、`notes`、`release`、`Windows` 各自撞上了别的东西。同一条查询换成 `advanced`，官方发布页就排在第一条。它每次搜索消耗更多 credit，所以不设为默认。
+
+```bash
+modsearch config set tavily.searchDepth advanced   # 语义排序
+modsearch config set tavily.searchDepth fast       # 更便宜，比 basic 更浅
+modsearch config set tavily.searchDepth ""         # 回到 basic
+```
+
+有个值得知道的连带效果：`basic` 下 Tavily 的 `answer` 字段也是由这批结果合成的，它会作为 summary 一路交给模型——听起来像结论、前后自洽，但排序错的时候它也跟着错。调高深度连这个问题一起修，因为 summary 和来源同源。可接受的取值：`basic`、`advanced`、`fast`、`ultra`。写入时 CLI 会拒绝其他值；手改文件里出现的坏值，引擎会明确指出，而不是悄悄按更浅的档位去搜。
 
 ### exa（搜索，每月免费额度）
 

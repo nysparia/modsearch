@@ -10,6 +10,7 @@ import { ApiKeyFailureError, isQuotaFailureMessage, splitApiKeys } from '../util
 import { redactSecrets } from '../util/redact.ts';
 import { requestText } from '../util/timedRequest.ts';
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
+import { DEFAULT_SEARCH_DEPTH, SEARCH_DEPTHS, parseSearchDepth } from './depth.ts';
 import { resolveEndpoint } from './endpoint.ts';
 
 const DEFAULT_MAX_RESULTS = 8;
@@ -44,6 +45,17 @@ export async function executeTavilySearch(options: EngineRequest): Promise<Engin
   }
 
   const maxResults = options.maxResults ?? DEFAULT_MAX_RESULTS;
+  // `config set` validates at write time; a hand-edited file or an environment
+  // layer skips that gate, so an unusable value is named here rather than
+  // silently searching shallower than the user asked for.
+  const configuredDepth = options.settings.searchDepth;
+  const parsedDepth = parseSearchDepth(configuredDepth);
+  if (configuredDepth !== undefined && parsedDepth === undefined) {
+    throw new Error(
+      `Invalid engine searchDepth: ${configuredDepth}. Use ${SEARCH_DEPTHS.join(', ')}.`,
+    );
+  }
+  const searchDepth = parsedDepth ?? DEFAULT_SEARCH_DEPTH;
   const startedAt = Date.now();
 
   // Own the abort signal so a --timeout shorter than any server-side ceiling is
@@ -60,7 +72,7 @@ export async function executeTavilySearch(options: EngineRequest): Promise<Engin
       },
       body: JSON.stringify({
         query: options.query,
-        search_depth: 'basic',
+        search_depth: searchDepth,
         include_answer: true,
         max_results: maxResults,
       }),
